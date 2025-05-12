@@ -10,7 +10,7 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from utils.schedule_parser import parse_schedule, build_dj_events
+from utils.schedule_parser import parse_schedule, parse_dj_events
 from utils.validation import can_move_slot, suggest_replacements
 
 # Persist parsed schedule and last submitted text across reruns
@@ -87,12 +87,12 @@ def parse_schedule(schedule_text):
     return dict(schedules)
 
 st.set_page_config(
-    page_title="DJ Schedule Manager",
+    page_title="아 타임 개 꼬이네",
     page_icon="🎧",
     layout="wide"
 )
 
-st.title("🎧 DJ Schedule Manager")
+st.title("아 타임 개 꼬이네")
 
 # Step 1: Input area with example format
 example_schedule = """금요일 Stay Lounge:
@@ -154,8 +154,8 @@ if st.session_state['schedules']:
                 """, unsafe_allow_html=True)
     
     # Sidebar UI for switch requests
-    dj_events = build_dj_events(schedules)
-    st.sidebar.header("🔄 Request a Switch")
+    dj_events = parse_dj_events(schedules)
+    st.sidebar.header("대타 대타")
     dj_list = list(dj_events.keys())
     selected_dj = st.sidebar.selectbox("Select DJ", dj_list)
     
@@ -210,7 +210,7 @@ if st.session_state['schedules']:
 
     # --- Bulk Remove DJ for a Day ---
     st.sidebar.markdown("---")
-    st.sidebar.header("🗑️ Bulk Remove DJ")
+    st.sidebar.header("아 왜 빠져서 우리 고생시키는데")
     dj_to_remove = st.sidebar.selectbox("Select DJ to remove", list(dj_events.keys()))
     day_options = sorted({slot['day'] for slots in schedules.values() for slot in slots if slot.get('day')})
     day_to_remove = st.sidebar.selectbox("Select Day", day_options)
@@ -226,7 +226,7 @@ if st.session_state['schedules']:
         if removed:
             st.sidebar.success(f"Removed {len(removed)} slots for {dj_to_remove} on {day_to_remove}:")
             # Rebuild events for fresh suggestions
-            dj_events = build_dj_events(schedules)
+            dj_events = parse_dj_events(schedules)
             # Suggest replacements
             for venue, slot in removed:
                 st.sidebar.write(f"- {slot['start']}–{slot['end']} @ {venue}")
