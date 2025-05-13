@@ -94,7 +94,7 @@ Code Lounge (Friday):
 05:00-06:00 AP
 06:00-07:00 Rude
 
-Stay Lounge (Friday):
+AP Lounge (Friday):
 22:00-23:00 Anemic
 23:00-00:00 Drako
 00:00-01:00 AP
@@ -122,7 +122,7 @@ Code Lounge (Saturday):
 05:00-06:00 AP
 06:00-07:00 Rude
 
-Stay Lounge (Saturday):
+AP Lounge (Saturday):
 22:00-23:00 Anemic
 23:00-00:00 Drako
 00:00-01:00 AP
@@ -350,7 +350,7 @@ if st.session_state['schedules']:
         # Parse selected source and target into dict structures
         def parse_choice(choice_str):
             # Regex to extract: venue (optional day) start-end
-            # Example: 'Day and Night (Saturday) 23:30-00:30' or 'Stay Lounge 10:00-11:00'
+            # Example: 'Day and Night (Saturday) 23:30-00:30' or 'AP Lounge 10:00-11:00'
             match = re.match(r"^(.*?)(?: \((.*?)\))? (\d{1,2}:\d{2})-(\d{1,2}:\d{2})$", choice_str)
             if not match:
                 raise ValueError(f"Could not parse slot string: {choice_str}")
