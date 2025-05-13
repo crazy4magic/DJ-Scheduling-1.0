@@ -230,7 +230,14 @@ if st.session_state['schedules']:
             # Suggest replacements
             for venue, slot in removed:
                 st.sidebar.write(f"- {slot['start']}–{slot['end']} @ {venue}")
-                sugg = suggest_replacements(slot, dj_events)
+                # Convert time strings to datetime objects
+                target_slot = {
+                    "venue": venue,
+                    "start": datetime.strptime(slot['start'], "%H:%M"),
+                    "end": datetime.strptime(slot['end'], "%H:%M"),
+                    "day": slot.get('day')
+                }
+                sugg = suggest_replacements(target_slot, dj_events)
                 if sugg:
                     st.sidebar.write("  • Replacements:", ", ".join(sugg))
                 else:
