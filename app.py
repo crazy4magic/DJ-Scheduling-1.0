@@ -76,17 +76,78 @@ if 'language' not in st.session_state:
 DJ_POOL = ["Xiid"]
 
 # Full default schedule for preview/copy
-DEFAULT_SCHEDULE_TEXT = """AP Lounge (Friday):
-22:00-00:00 Caleb
-00:00-02:00 Tezz
-02:00-04:00 Yolo
-04:00-06:00 Caleb
+DEFAULT_SCHEDULE_TEXT = """Day and Night (Friday):
+22:00-23:30 Illi
+23:30-00:45 Caleb
+00:45-02:00 Yolo
+02:00-03:15 Giri
+03:15-04:30 Ellia
+04:30-06:00 Big ma
 
-AP Lounge (Saturday):
-22:00-00:00 Caleb
-00:00-02:00 Tezz
-02:00-04:00 Yolo
-04:00-06:00 Caleb
+Code Lounge (Friday):
+22:00-00:00 Rude
+00:00-01:00 Illi
+01:00-02:00 Freekey
+02:00-03:00 Caleb
+03:00-04:00 Emess
+04:00-05:00 Yolo
+05:00-06:00 AP
+06:00-07:00 Rude
+
+Stay Lounge (Friday):
+22:00-23:00 Anemic
+23:00-00:00 Drako
+00:00-01:00 AP
+01:00-02:00 Tezz
+02:00-03:00 Emess
+03:00-04:00 Caleb
+04:00-05:00 Pluma
+
+Day and Night (Saturday):
+22:00-23:30 Illi
+23:30-00:45 Caleb
+00:45-02:00 Yolo
+02:00-03:15 Drako
+03:15-04:30 Giri
+04:30-05:45 Ellia
+05:45-07:00 Big ma
+
+Code Lounge (Saturday):
+22:00-00:00 Rude
+00:00-01:00 Tezz
+01:00-02:00 Freekey
+02:00-03:00 Caleb
+03:00-04:00 Emess
+04:00-05:00 Yolo
+05:00-06:00 AP
+06:00-07:00 Rude
+
+Stay Lounge (Saturday):
+22:00-23:00 Anemic
+23:00-00:00 Drako
+00:00-01:00 AP
+01:00-02:00 Tezz
+02:00-03:00 Emess
+03:00-04:00 Caleb
+04:00-05:00 Pluma
+
+Pose Lounge (Friday):
+10:30-00:00 Jamie
+
+Badass (Friday):
+00:00-01:00 Jamie
+
+Dive (Friday):
+01:30-03:00 Jamie
+
+Dive (Saturday):
+00:00-01:30 Jamie
+
+Pose Lounge (Saturday):
+01:30-03:00 Jamie
+
+Badass (Saturday):
+03:00-04:00 Jamie
 
 Owl Lounge (Friday):
 22:00-00:00 Yolo
