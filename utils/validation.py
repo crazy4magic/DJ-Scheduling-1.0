@@ -143,9 +143,17 @@ def suggest_replacements(
         ['DJ1']
     """
     suggestions = []
-    for dj, events in dj_events.items():
-        # Only check conflicts for the specific day if provided
+    
+    # Check scheduled DJs and DJ pool
+    for dj in set(dj_events.keys()).union(DJ_POOL):
+        # For DJs in the pool, they have no events so they're always available
+        if dj in DJ_POOL:
+            suggestions.append(dj)
+            continue
+            
+        # For scheduled DJs, check conflicts
         ok, _ = can_move_slot(dj, None, target, dj_events, day=target.get('day'))
         if ok:
             suggestions.append(dj)
+    
     return suggestions 
