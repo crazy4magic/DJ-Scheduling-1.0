@@ -10,13 +10,78 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from utils.schedule_parser import parse_schedule, parse_dj_events
+from utils.schedule_parser import parse_schedule, parse_dj_events, generate_replacement_summary
 from utils.validation import (
     can_move_slot, 
     suggest_replacements,
     get_venue_area,
     get_area_travel_time
 )
+
+def get_replacement_suggestions(slot, dj_events, used_djs=None, cascade_chain=None):
+    """Get ordered list of replacement suggestions for a slot with cascading logic."""
+    if used_djs is None:
+        used_djs = set()
+    if cascade_chain is None:
+        cascade_chain = []
+    
+    suggestions = []
+    
+    # Debug logging removed
+    
+    # 1. Try pool DJs first (they don't need cascading)
+    for pool_dj in DJ_POOL:
+        if pool_dj not in used_djs:
+            ok, reason = can_move_slot(pool_dj, None, slot, dj_events)
+            # st.write(f"DEBUG: Pool DJ {pool_dj} check - OK: {ok}, Reason: {reason}")  # DEBUG removed
+            if ok:
+                suggestions.append((pool_dj, "DJ Pool", None, None))
+    
+    # 2. Try free DJs (no cascading needed)
+    for dj in dj_events.keys():
+        if dj not in used_djs and dj not in DJ_POOL:
+            ok, reason = can_move_slot(dj, None, slot, dj_events)
+            # st.write(f"DEBUG: Free DJ {dj} check - OK: {ok}, Reason: {reason}")  # DEBUG removed
+            if ok:
+                suggestions.append((dj, "Free", None, None))
+    
+    # 3. Try cascade options (recursive)
+    for dj in dj_events.keys():
+        if dj not in used_djs and dj not in DJ_POOL:
+            # Check if this DJ has any sets that could be moved
+            for e in dj_events[dj]:
+                if e['day'] == slot.get('day'):
+                    temp_slot = {
+                        'venue': e['venue'],
+                        'start': e['start'],
+                        'end': e['end'],
+                        'day': e['day']
+                    }
+                    
+                    # Look for someone who could take this DJ's set
+                    for potential_replacer in dj_events.keys():
+                        if (potential_replacer != dj and 
+                            potential_replacer not in used_djs and
+                            potential_replacer not in cascade_chain):  # Prevent infinite loops
+                            
+                            ok, reason = can_move_slot(potential_replacer, None, temp_slot, dj_events)
+                            # st.write(f"DEBUG: Cascade check for {dj} -> {potential_replacer} - OK: {ok}, Reason: {reason}")  # DEBUG removed
+                            if ok:
+                                # Recursively check if we can fill the replacer's slot
+                                cascade_chain.append(dj)
+                                cascade_suggestions = get_replacement_suggestions(
+                                    temp_slot, 
+                                    dj_events, 
+                                    used_djs.union({dj, potential_replacer}),
+                                    cascade_chain
+                                )
+                                cascade_chain.pop()
+                                
+                                if cascade_suggestions:
+                                    suggestions.append((dj, "Cascade", potential_replacer, cascade_chain.copy()))
+    
+    # st.write("DEBUG: Final suggestions list:", suggestions)  # DEBUG removed
+    return suggestions
 
 # Language strings
 LANG = {
@@ -294,8 +359,30 @@ user_input = st.text_area(t['input_label'], height=300, value=st.session_state['
 
 # When the user submits, parse and save to session state
 if st.button(t['submit']) and user_input.strip():
-    st.session_state['schedules'] = parse_schedule(user_input)
+    with st.spinner("Parsing schedule..."):
+        st.session_state['schedules'] = parse_schedule(user_input)
     st.session_state['last_schedule_text'] = user_input
+    
+    # Display parsed schedule in text format
+    st.markdown("### Parsed Schedule")
+    schedules = st.session_state['schedules']
+    schedule_text = ""
+    for venue, slots in schedules.items():
+        schedule_text += f"\n{venue}:\n"
+        # Group slots by day
+        slots_by_day = defaultdict(list)
+        for slot in slots:
+            day = slot.get('day', 'No day specified')
+            slots_by_day[day].append(slot)
+        
+        # Display slots by day
+        for day, day_slots in slots_by_day.items():
+            schedule_text += f"\n{day}:\n"
+            for slot in sorted(day_slots, key=lambda x: x['start']):
+                schedule_text += f"{slot['start']}–{slot['end']} {slot['dj']}\n"
+    
+    st.text_area("Schedule Summary", schedule_text.strip(), height=300)
+    st.success("✅ Schedule parsed successfully!")
 
 # If a schedule is stored in session state, display and enable sidebar
 if st.session_state['schedules']:
@@ -304,7 +391,25 @@ if st.session_state['schedules']:
     
     # Display schedule cards and sidebar UI as before
     for venue, slots in schedules.items():
-        st.markdown(f"### 📍 {venue}")
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.markdown(f"### 📍 {venue}")
+        with col2:
+            # Create copy text for this venue
+            venue_text = f"{venue}:\n"
+            slots_by_day = defaultdict(list)
+            for slot in slots:
+                day = slot.get('day', 'No day specified')
+                slots_by_day[day].append(slot)
+            for day, day_slots in slots_by_day.items():
+                venue_text += f"\n{day}:\n"
+                for slot in sorted(day_slots, key=lambda x: x['start']):
+                    venue_text += f"{slot['start']}–{slot['end']} {slot['dj']}\n"
+            
+            if st.button("📋 Copy", key=f"copy_{venue}"):
+                st.code(venue_text.strip())
+                st.success("Copied!")
+        
         slots_by_day = defaultdict(list)
         for slot in slots:
             day = slot.get('day', 'No day specified')
@@ -312,11 +417,11 @@ if st.session_state['schedules']:
         for day, day_slots in slots_by_day.items():
             st.markdown(f"**{day}**")
             for slot in day_slots:
-                st.markdown(f"""
-                <div style='padding: 10px; background-color: #ffd700; color: #000000; border: 2px solid #000000; border-radius: 6px; margin: 5px 0; font-weight: bold; font-size: 16px; box-shadow: 2px 2px 4px rgba(0,0,0,0.1);'>
-                    🕒 {slot['start']} – {slot['end']} | 🎧 {slot['dj']}
-                </div>
-                """, unsafe_allow_html=True)
+                # Different styling for autofilled slots
+                if slot.get('autofilled'):
+                    st.markdown(f"- {slot['start']}–{slot['end']} 🎧 {slot['dj']} (Auto-filled)")
+                else:
+                    st.markdown(f"- {slot['start']}–{slot['end']} 🎧 {slot['dj']}")
     
     # Sidebar UI for switch requests
     dj_events = parse_dj_events(schedules)
@@ -401,37 +506,174 @@ if st.session_state['schedules']:
     st.sidebar.markdown("---")
     st.sidebar.header(t['remove_header'])
     dj_to_remove = st.sidebar.selectbox(t['select_dj'], list(dj_events.keys()))
-    day_options = sorted({slot['day'] for slots in schedules.values() for slot in slots if slot.get('day')})
-    day_to_remove = st.sidebar.selectbox(t['select_day'], day_options)
+
+    # Day selection for targeted removal
+    day_selection = st.sidebar.multiselect(t['select_day'], ["Friday", "Saturday"], default=["Friday"])
     remove_clicked = st.sidebar.button(t['remove_dj'])
 
     if remove_clicked:
         removed = []
         for venue, slots in schedules.items():
             for slot in slots.copy():
-                if slot['dj'] == dj_to_remove and slot.get('day') == day_to_remove:
+                if slot['dj'] == dj_to_remove and slot.get('day') in day_selection:
                     removed.append((venue, slot))
                     slots.remove(slot)
         if removed:
-            st.sidebar.success(f"Removed {len(removed)} slots for {dj_to_remove} on {day_to_remove}:")
-            # Rebuild events for fresh suggestions
-            dj_events = parse_dj_events(schedules)
-            # Suggest replacements
+            # Get replacement suggestions for each removed slot
+            replacement_ui = {}
             for venue, slot in removed:
-                st.sidebar.write(f"- {slot['start']}–{slot['end']} @ {venue}")
-                # Convert time strings to datetime objects
-                target_slot = {
-                    "venue": venue,
-                    "start": datetime.strptime(slot['start'], "%H:%M"),
-                    "end": datetime.strptime(slot['end'], "%H:%M"),
-                    "day": slot.get('day')
+                slot_key = f"{venue}_{slot['start']}_{slot['end']}"
+                suggestions = get_replacement_suggestions({
+                    'venue': venue,
+                    'start': datetime.strptime(slot['start'], "%H:%M"),
+                    'end': datetime.strptime(slot['end'], "%H:%M"),
+                    'day': slot.get('day')
+                }, dj_events)
+                # Always track each slot, even if no suggestions
+                replacement_ui[slot_key] = {
+                    'slot': slot,
+                    'suggestions': suggestions,
+                    'selected': suggestions[0] if suggestions else None
                 }
-                sugg = suggest_replacements(target_slot, dj_events)
-                if sugg:
-                    st.sidebar.write("  • Replacements:", ", ".join(sugg))
+
+            # Display replacement UI in main area
+            st.markdown(f"### {dj_to_remove} is unavailable")
+            
+            # Track selected replacements
+            selected_replacements = {}
+
+            # Move replacement selection to sidebar
+            st.sidebar.markdown("### Select Replacements")
+            for slot_key, data in replacement_ui.items():
+                slot = data['slot']
+                suggestions = data['suggestions']
+
+                st.sidebar.markdown(f"**{slot['venue']} ({slot.get('day', 'No day')}) {slot['start']}–{slot['end']}**")
+                if suggestions:
+                    # Create dropdown options with cascade information
+                    options = []
+                    for dj, source_type, cascade_dj, cascade_chain in suggestions:
+                        if cascade_chain and len(cascade_chain) > 1:
+                            label = f"{dj} (via cascade: {' → '.join(cascade_chain)})"
+                        elif cascade_dj:
+                            label = f"{dj} (moved from {cascade_dj})"
+                        elif source_type == "DJ Pool":
+                            label = f"{dj} (from DJ Pool)"
+                        else:
+                            label = f"{dj} (Free)"
+                        options.append((label, (dj, source_type, cascade_dj, cascade_chain)))
+
+                    selected = st.sidebar.selectbox(
+                        "Replacement",
+                        options=options,
+                        format_func=lambda x: x[0],
+                        key=f"replace_{slot_key}"
+                    )
+                    selected_replacements[slot_key] = selected[1]
                 else:
-                    st.sidebar.write("  • No replacements found.")
+                    st.sidebar.markdown("❗ No available replacements for this slot.")
+
+            # Add confirm/cancel buttons
+            col1, col2 = st.sidebar.columns(2)
+            with col1:
+                if st.button("✅ Confirm & Apply", key="confirm_replacements"):
+                    # Apply the selected replacements
+                    for slot_key, (dj, source_type, cascade_dj, cascade_chain) in selected_replacements.items():
+                        venue, start, end = slot_key.split('_')
+                        # Find the slot in the schedule
+                        for slot in schedules[venue]:
+                            if (slot['start'] == start and
+                                slot['end'] == end):
+                                slot['dj'] = dj
+                                slot['autofilled'] = True
+
+                                # Handle cascade if needed
+                                if cascade_chain:
+                                    # Apply the entire cascade chain
+                                    for i in range(len(cascade_chain) - 1):
+                                        current_dj = cascade_chain[i]
+                                        next_dj = cascade_chain[i + 1]
+                                        # Find and update the cascade DJ's slot
+                                        for other_venue, other_slots in schedules.items():
+                                            for other_slot in other_slots:
+                                                if (other_slot['dj'] == current_dj):
+                                                    other_slot['dj'] = next_dj
+                                                    other_slot['autofilled'] = True
+
+                    # Rebuild events
+                    dj_events = parse_dj_events(schedules)
+                    st.success("✅ Replacements applied successfully!")
+
+                    # Generate and display summary
+                    st.markdown("### Changes Summary")
+                    summary = []
+                    for slot_key, (dj, source_type, cascade_dj, cascade_chain) in selected_replacements.items():
+                        venue, start, end = slot_key.split('_')
+                        slot = next(s for s in removed if s[0] == venue and s[1]['start'] == start and s[1]['end'] == end)[1]
+                        summary.append(format_slot_summary(slot, dj, source_type, cascade_dj, cascade_chain))
+
+                    summary_text = "\n".join(summary)
+                    st.code(summary_text)
+
+            with col2:
+                if st.button("❌ Cancel", key="cancel_replacements"):
+                    # Restore the original slots
+                    for venue, slot in removed:
+                        schedules[venue].append(slot)
+                    st.info("❌ Changes cancelled. Original schedule restored.")
+                    # Rebuild events
+                    dj_events = parse_dj_events(schedules)
         else:
-            st.sidebar.info(t['no_slots'])
+            st.info(t['no_slots'])
+
+    # --- Single Slot Removal ---
+    st.sidebar.markdown("---")
+    st.sidebar.header("🕳 특정 슬롯 빠지기 (Single Slot Removal)")
+
+    dj_for_single_removal = st.sidebar.selectbox("DJ 선택 (1개 슬롯만 제거)", dj_list, key="single_remove_dj")
+    single_slot_options = []
+
+    if dj_for_single_removal in dj_events:
+        for e in dj_events[dj_for_single_removal]:
+            label = f"{e['day']} - {e['venue']} {e['start'].strftime('%H:%M')}–{e['end'].strftime('%H:%M')}"
+            single_slot_options.append((label, e))
+
+    if single_slot_options:
+        selected_event = st.sidebar.selectbox(
+            "슬롯 선택", single_slot_options, format_func=lambda x: x[0], key="single_slot_select"
+        )[1]
+
+        if st.sidebar.button("이 슬롯만 빠지기"):
+            removed = False
+            for venue, slots in schedules.items():
+                for slot in slots.copy():
+                    if (
+                        slot['dj'] == dj_for_single_removal and
+                        slot['start'] == selected_event['start'].strftime('%H:%M') and
+                        slot['end'] == selected_event['end'].strftime('%H:%M')
+                    ):
+                        slots.remove(slot)
+                        removed = True
+                if removed:
+                    st.sidebar.success(f"{dj_for_single_removal} removed from {selected_event['venue']} on {selected_event['start'].strftime('%H:%M')}–{selected_event['end'].strftime('%H:%M')}")
+                else:
+                    st.sidebar.warning("No matching slot found.")
 else:
     st.info(t['please_paste'])
+
+def format_slot_summary(slot, new_dj, source_type, cascade_dj=None, cascade_chain=None):
+    """Format a slot change for the summary text."""
+    venue = slot['venue']
+    time = f"{slot['start']}–{slot['end']}"
+    day = slot.get('day', '')
+    
+    if cascade_chain and len(cascade_chain) > 1:
+        chain_str = " → ".join(cascade_chain)
+        return f"{venue} ({day}) {time}: {new_dj} (via cascade: {chain_str})"
+    elif cascade_dj:
+        return f"{venue} ({day}) {time}: {new_dj} (moved from {cascade_dj})"
+    elif source_type == "DJ Pool":
+        return f"{venue} ({day}) {time}: {new_dj} (from DJ Pool)"
+    else:
+        return f"{venue} ({day}) {time}: {new_dj}"
+    

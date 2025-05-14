@@ -123,4 +123,21 @@ def parse_dj_events(schedules: Dict[str, List[Dict[str, str]]]) -> Dict[str, Lis
                 "end": end_dt,
                 "day": slot.get('day', 'No day specified')
             })
-    return dj_events 
+    return dj_events
+
+def generate_replacement_summary(schedules: Dict[str, List[Dict[str, str]]]) -> str:
+    """
+    Generate a plain text summary of replacements.
+    
+    Args:
+        schedules (Dict[str, List[Dict[str, str]]]): Parsed schedule with replacements
+        
+    Returns:
+        str: Plain text summary of replacements
+    """
+    replacement_text = ""
+    for venue, slots in schedules.items():
+        for slot in slots:
+            if slot.get("autofilled"):
+                replacement_text += f"{venue} {slot['start']}–{slot['end']} → {slot['dj']}\n"
+    return replacement_text.strip()
